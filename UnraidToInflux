@@ -1,4 +1,8 @@
 ## Assembled from this post: https://lime-technology.com/forum/index.php?topic=52220.msg512346#msg512346
+## add to cron like:
+##  * * * * * sleep 10; /boot/custom/influxdb.sh > /dev/null 2>&1
+##  //0,10 * * * * /boot/custom/influxdb.sh > /dev/null 2>&1
+
 #
 # Set Vars
 #
