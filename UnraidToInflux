@@ -1,0 +1,72 @@
+## Assembled from this post: https://lime-technology.com/forum/index.php?topic=52220.msg512346#msg512346
+#
+# Set Vars
+#
+DBURL=http://192.168.x.x:8086  ## IP address of your InfluxDB server
+DBNAME=dashboard  ## Easier if you pick an existing DB
+DEVICE="UNRAID"
+CURDATE=`date +%s`
+
+
+# Current array assignment.
+# I could pull the automatically from /var/local/emhttp/disks.ini
+# Parsing it wouldnt be that easy though.
+DISK_ARRAY=( sdn sdl sdf sdc sdj sde sdo sdh sdi sdd sdk sdm sdg sdp sdb )
+DESCRIPTION=( parity disk1 disk2 disk3 disk4 disk5 disk6 disk7 disk8 disk9 disk10 disk11 disk12 disk13 cache )
+#
+# Added -n standby to the check so smartctl is not spinning up my drives
+#
+i=0
+for DISK in "${DISK_ARRAY[@]}"
+do
+	smartctl -n standby -A /dev/$DISK | grep "Temperature_Celsius" | awk '{print $10}' | while read TEMP 
+	do
+		curl -is -XPOST "$DBURL/write?db=$DBNAME" --data-binary "DiskTempStats,DEVICE=${DEVICE},DISK=${DESCRIPTION[$i]} Temperature=${TEMP} ${CURDATE}000000000" >/dev/null 2>&1
+	done
+	((i++))
+done
+
+# Had to increase to 10 samples because I was getting a spike each time I read it.  This seems to smooth it out more
+top -b -n 10 -d.2 | grep "Cpu" |  tail -n 1 | awk '{print $2,$4,$6,$8,$10,$12,$14,$16}' | while read CPUusr CPUsys CPUnic CPUidle CPUio CPUirq CPUsirq CPUst
+do
+	top -bn1 | head -3 | awk '/load average/ {print $12,$13,$14}' | sed 's/,//g' | while read LAVG1 LAVG5 LAVG15
+	do
+		curl -is -XPOST "$DBURL/write?db=$DBNAME" --data-binary "cpuStats,Device=${DEVICE} CPUusr=${CPUusr},CPUsys=${CPUsys},CPUnic=${CPUnic},CPUidle=${CPUidle},CPUio=${CPUio},CPUirq=${CPUirq},
+CPUsirq=${CPUsirq},CPUst=${CPUst},CPULoadAvg1m=${LAVG1},CPULoadAvg5m=${LAVG5},CPULoadAvg15m=${LAVG15} ${CURDATE}000000000" >/dev/null 2>&1
+	done
+done
+
+if [[ -f byteCount.tmp ]] ; then
+
+	# Read the last values from the tmpfile - Line "eth0"
+	grep "eth0" byteCount.tmp | while read dev lastBytesIn lastBytesOut
+	do
+		cat /proc/net/dev | grep "eth0" | grep -v "veth" | awk '{print $2, $10}' | while read currentBytesIn currentBytesOut 
+		do
+			# Write out the current stats to the temp file for the next read
+			echo "eth0" ${currentBytesIn} ${currentBytesOut} > byteCount.tmp
+
+			totalBytesIn=`expr ${currentBytesIn} - ${lastBytesIn}`
+			totalBytesOut=`expr ${currentBytesOut} - ${lastBytesOut}`
+
+			curl -is -XPOST "$DBURL/write?db=$DBNAME" --data-binary "interfaceStats,Interface=eth0,Device=${DEVICE} bytesIn=${totalBytesIn},bytesOut=${totalBytesOut} ${CURDATE}000000000" >/
+dev/null 2>&1
+
+		done
+	done 
+
+else
+    # Write out blank file
+	echo "eth0 0 0" > byteCount.tmp
+fi
+
+# Gets the stats for boot, disk#, cache, user
+#
+df | grep "mnt/\|/boot\|docker" | grep -v "user0\|containers" | sed 's/\/mnt\///g' | sed 's/%//g' | sed 's/\/var\/lib\///g'| sed 's/\///g' | while read MOUNT TOTAL USED FREE UTILIZATION DISK
+do
+	if [ "${DISK}" = "user" ]; then
+		DISK="array_total"
+	fi
+	curl -is -XPOST "$DBURL/write?db=$DBNAME" --data-binary "drive_spaceStats,Device=${DEVICE},Drive=${DISK} Free=${FREE},Used=${USED},Utilization=${UTILIZATION} ${CURDATE}000000000" >/dev/null 2>&
+1	
+done
