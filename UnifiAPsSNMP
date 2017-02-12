@@ -1,0 +1,23 @@
+##  You need a separate inputs section for each AP.
+##  You also must enable SNMP on the controller.
+
+[[inputs.snmp]]
+agents = [ "192.168.x.x:161" ]  ## The IP of a single AP.
+timeout = "5s"
+retries = 3
+version = 1
+community = "RO_Community"
+max_repetitions = 10
+name = "UnifiWiFiOffice"
+[[inputs.snmp.field]]
+name = "Bits.Out"
+oid = "1.3.6.1.4.1.41112.1.6.2.1.1.12.0"
+[[inputs.snmp.field]]
+name = "Bits.In"
+oid = "1.3.6.1.4.1.41112.1.6.2.1.1.6.0"
+[[inputs.snmp.field]]
+name = "2.4.Clients"
+oid = "1.3.6.1.4.1.41112.1.6.1.2.1.8.0"
+[[inputs.snmp.field]]
+name = "5.0.Clients"
+oid = "1.3.6.1.4.1.41112.1.6.1.2.1.8.3"
