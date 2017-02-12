@@ -1,5 +1,6 @@
 ##  You need a separate inputs section for each AP.
 ##  You also must enable SNMP on the controller.
+##  The bits in and out OIDs are incorrect.  I'll see if I can find the right ones.
 
 [[inputs.snmp]]
 agents = [ "192.168.x.x:161" ]  ## The IP of a single AP.
